@@ -14,9 +14,14 @@ gray <- function(x) {
   paste0("\033[38;5;246m", x, "\033[39m")
 }
 
+cron_system <- function(...) {
+  cron_check_install()
+  system2("crontab", args = c(...), stdout = TRUE)
+}
+
 #' @export
 cron_list.default <- function(silent = FALSE) {
-  x <- system("crontab -l", intern = TRUE)
+  x <- cron_system("-l")
   if (!silent) {
     xx <- x
     cmt <- grep("^#", xx)
@@ -37,19 +42,22 @@ cron_reset <- function() {
 
 #' @export
 cron_reset.default <- function() {
-  system("crontab -r")
+  cat("Printing current cron jobs\n")
+  cron_list()
+  cron_system("-r")
 }
 
-cron_preample <- "# created by the R package {cronjobs}
-
-# Example of cron job:
-# +-------------- minute (0 - 59)
-# | +------------ hour (0 - 23)
-# | | +---------- day of month (1 - 31)
-# | | | +-------- month (1 - 12) OR jan,feb,mar,apr ...
-# | | | | +------ day of week (0 - 6) (Sunday=0 or 7) OR sun,mon,tue,wed,thu,fri,sat
-# | | | | |
-# * * * * * Rscript /home/user/path/to/job.R"
+cron_preample <-
+"# An example by {cronjobs}:
+#  ┏╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍ minute  (0-59)
+#  ╏   ┏╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍ hour    (0-23)
+#  ╏   ╏   ┏╍╍╍╍╍╍╍╍╍╍╍╍╍╍╍ day     (1-31)
+#  ╏   ╏   ╏   ┏╍╍╍╍╍╍╍╍╍╍╍ month   (1-12;jan-dec)
+#  ╏   ╏   ╏   ╏   ┏╍╍╍╍╍╍╍ weekday (0-6;sun-sat)
+#  ╏   ╏   ╏   ╏   ╏   ┏╍╍╍ command (+arguments)
+#  ╏   ╏   ╏   ╏   ╏   ╏
+# [0] [9] [*] [*] [*] [Rscript /home/user/path/to/job.R]
+#"
 
 #' Add cronjob
 #'
@@ -58,23 +66,44 @@ cron_preample <- "# created by the R package {cronjobs}
 #' @param cmd Command or path to .R file
 #' @param time When to execute
 #' @export
-cron_add <- function(cmd, time = "0 * * * *") {
+cron_add <- function(cmd, time = NULL) {
   UseMethod("cron_add")
 }
 
 #' @export
-cron_add.default <- function(cmd, time = "00 * * * *") {
+cron_add.default <- function(cmd, time = NULL) {
+  if (!is.null(time)) {
+    time <- paste0(trimws(time), " ")
+  } else if (!grepl("^(\\d+|\\*) ", cmd)) {
+    time <- "00 * * * * "
+  } else {
+    time <- ""
+  }
   if (grepl("^\\S+\\.R", cmd)) {
     if (!grepl("/", cmd)) {
       cmd <- file.path(getwd(), cmd)
     }
     cmd <- paste("Rscript", normalizePath(cmd, mustWork = FALSE))
   }
-  jobs <- trimws(c(cron_list(silent = TRUE), paste(time, cmd)))
+  jobs <- trimws(c(cron_list(silent = TRUE), paste0(time, cmd)))
   jobs <- grep("^#|^$", jobs, invert = TRUE, value = TRUE)
   writeLines(c(cron_preample, jobs), tmp <- tempfile())
-  system(paste("crontab", tmp))
+  cron_system(tmp)
   cron_list()
+}
+
+cron_check_install <- function() {
+  if (Sys.which("crontab") != "") {
+    return(invisible(TRUE))
+  }
+  if (.Platform$OS.type != "unix") {
+    stop("Sorry, crontab is not available for Windows\n", call. = FALSE)
+  }
+  if (grepl("linux", R.version$platform)) {
+    stop("crontab not found. Install using terminal commands such as\n  $ ",
+      "sudo apt-get update\n  $ sudo apt-get install cron", call. = FALSE)
+  }
+  stop("couldn't find crontab on your computer.", call. = FALSE)
 }
 
 #' Remove cronjob
@@ -98,8 +127,19 @@ cron_remove.default <- function(x, exact = FALSE, ...) {
   } else {
     i <- grep(x, jobs, ...)
   }
+  if (length(i) == 0) {
+    dots <- list(...)
+    if (length(dots) > 0) {
+      dots <- paste0("jobs, ", paste(names(dots), "=", dots, collapse = ", "))
+    } else {
+      dots <- "jobs"
+    }
+    stop("The following returned no matches: grep(\"", x, "\", ", dots, ")",
+      call. = FALSE)
+  }
   writeLines(jobs[-i], tmp <- tempfile())
-  system(paste("crontab", tmp))
+  cron_system(tmp)
+  cron_list()
 }
 
 #' Explain cronjobs
