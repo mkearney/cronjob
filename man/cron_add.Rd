@@ -4,10 +4,10 @@
 \alias{cron_add}
 \title{Add cronjob}
 \usage{
-cron_add(cmd, time = NULL)
+cron_add(x, time = NULL)
 }
 \arguments{
-\item{cmd}{Command or path to .R file}
+\item{x}{Command or path to .R file}
 
 \item{time}{When to execute}
 }

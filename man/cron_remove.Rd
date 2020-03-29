@@ -4,13 +4,10 @@
 \alias{cron_remove}
 \title{Remove cronjob}
 \usage{
-cron_remove(x, exact = FALSE, ...)
+cron_remove(x, ...)
 }
 \arguments{
-\item{x}{Job to remove}
-
-\item{exact}{Logical indicating whether to due exact matching; the default,
-FALSE, will use x as the pattern with grep()}
+\item{x}{Job to remove–either the full job, the line number, or a regex}
 
 \item{...}{other args passed to grep()}
 }
